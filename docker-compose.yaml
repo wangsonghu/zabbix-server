@@ -1,0 +1,292 @@
+version: '3.5'
+services:
+  db_data_pgsql:
+    image: registry.work.top/apps/busybox:v2023-06-03
+    volumes:
+    - ./zbx_env/var/lib/postgresql/data:/var/lib/postgresql/data:rw
+
+  postgres-server:
+    image: registry.work.top/apps/postgres:14-alpine_v2023-06-03
+    environment:
+      POSTGRES_USER: "zabbix"
+      POSTGRES_PASSWORD: "zabbix_pwd"
+      POSTGRES_DB: "zabbix"
+    volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - ./zbx_env/var/lib/postgresql/data:/var/lib/postgresql/data:rw
+    - ./env_vars/.ZBX_DB_CA_FILE:/run/secrets/root-ca.pem:ro
+    - ./env_vars/.ZBX_DB_CERT_FILE:/run/secrets/server-cert.pem:ro
+    - ./env_vars/.ZBX_DB_KEY_FILE:/run/secrets/server-key.pem:ro
+    networks:
+      zbx_net_backend:
+        aliases:
+        - postgres-server
+        - pgsql-server
+        - pgsql-database
+    stop_grace_period: 1m
+    restart: always
+
+  zabbix-snmptraps:
+    image: registry.work.top/zabbix/zabbix-snmptraps:alpine-6.0_v2023-06-03
+    volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - snmptraps:/var/lib/zabbix/snmptraps:rw
+    - ./var/lib/zabbix/mibs:/usr/share/snmp/mibs:ro
+    ports:
+    - "162:1162/udp"
+    networks:
+      zbx_net_frontend:
+        aliases:
+        - zabbix-snmptraps
+      zbx_net_backend:
+    labels:
+      com.zabbix.description: "Zabbix snmptraps"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "snmptraps"
+      com.zabbix.os: "alpine"
+    stop_grace_period: 5s
+    restart: always
+
+  zabbix-server-pgsql:
+    image: registry.work.top/zabbix/zabbix-server-pgsql:alpine-6.0_v2023-06-03
+    environment:
+      DB_SERVER_HOST: "postgres-server"
+      POSTGRES_USER: "zabbix"
+      POSTGRES_PASSWORD: "zabbix_pwd"
+      POSTGRES_DB: "zabbix"
+      ZBX_ENABLE_SNMP_TRAPS: "true"
+    volumes:
+    - ./zbx_env/etc/zabbix/zabbix_server.conf:/etc/zabbix/zabbix_server.conf:ro
+    networks:
+      zbx_net_backend:
+        aliases:
+        - zabbix-server
+        - zabbix-server-pgsql
+        - zabbix-server-alpine-pgsql
+        - zabbix-server-pgsql-alpine
+      zbx_net_frontend:
+    stop_grace_period: 30s
+    sysctls:
+    - net.ipv4.ip_local_port_range=1024 65000
+    - net.ipv4.conf.all.accept_redirects=0
+    - net.ipv4.conf.all.secure_redirects=0
+    - net.ipv4.conf.all.send_redirects=0
+    labels:
+      com.zabbix.description: "Zabbix server with PostgreSQL database support"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-server"
+      com.zabbix.dbtype: "pgsql"
+      com.zabbix.os: "alpine"
+    ports:
+    - "10051:10051"
+    volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - ./zbx_env/usr/lib/zabbix/alertscripts:/usr/lib/zabbix/alertscripts:ro
+    - ./zbx_env/usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts:ro
+    - ./zbx_env/var/lib/zabbix/dbscripts:/var/lib/zabbix/dbscripts:ro
+    - ./zbx_env/var/lib/zabbix/export:/var/lib/zabbix/export:rw
+    - ./zbx_env/var/lib/zabbix/modules:/var/lib/zabbix/modules:ro
+    - ./zbx_env/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
+    - ./zbx_env/var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro
+    - ./zbx_env/var/lib/zabbix/mibs:/var/lib/zabbix/mibs:ro
+    - ./var/log/dingding/running.log:/usr/local/zabbix/log/dingding.log:rw
+    - ./python/bin/pip:/usr/local/bin/pip:ro
+    - ./python/bin/python3.12-config:/usr/local/bin/python3.12-config:ro
+    - ./python/bin/pip3:/usr/local/bin/pip3:ro
+    - ./python/bin/pydoc:/usr/local/bin/pydoc:ro
+    - ./python/bin/python3:/usr/local/bin/python3:ro
+    - ./python/bin/python-config:/usr/local/bin/python-config:ro
+    - ./python/bin/python3-config:/usr/local/bin/python3-config:ro
+    - ./python/bin/2to3:/usr/local/bin/2to3:ro
+    - ./python/bin/python:/usr/local/bin/python:ro
+    - ./python/bin/pydoc3:/usr/local/bin/pydoc3:ro
+    - ./python/bin/idle3.12:/usr/local/bin/idle3.12:ro
+    - ./python/bin/idle:/usr/local/bin/idle:ro
+    - ./python/bin/python3.12:/usr/local/bin/python3.12:ro
+    - ./python/bin/2to3-3.12:/usr/local/bin/2to3-3.12:ro
+    - ./python/bin/idle3:/usr/local/bin/idle3:ro
+    - ./python/bin/pip3.12:/usr/local/bin/pip3.12:ro
+    - ./python/bin/wheel:/usr/local/bin/wheel:ro
+    - ./python/include/python3.12:/usr/local/lib/include/python3.12:ro
+    - ./python/lib/libpython3.12.so:/usr/local/lib/libpython3.12.so:ro
+    - ./python/lib/libpython3.12.so.1.0:/usr/local/lib/libpython3.12.so.1.0:ro
+    - ./python/lib/libpython3.so:/usr/local/lib/libpython3:ro
+    - ./python/lib/pkgconfig:/usr/local/lib/pkgconfig:ro
+    - ./python/lib/python3.12:/usr/local/lib/python3.12:ro
+    - ./python/share/man/man1/python3.1:/usr/local/share/man/man1/python3.1:ro
+    - ./python/share/man/man1/python3.12.1:/usr/local/share/man/man1/python3.12.1:ro
+    - ./openssl/usr/lib/ossl-modules:/usr/lib/ossl-modules:ro
+    - ./openssl/usr/lib/libssl.so.3:/usr/lib/libssl.so.3:ro
+    - ./openssl/lib/libssl.so.3:/lib/libssl.so.3:ro
+    - ./openssl/etc/ssl1.1:/etc/ssl1.1:ro
+    - ./openssl/etc/ssl:/etc/ssl:ro
+    - ./openssl/usr/bin/ssl_client:/usr/bin/ssl_client:ro
+    - ./openssl/usr/lib/libcrypto.so.3:/usr/lib/libcrypto.so.3:ro
+    - ./openssl/lib/libcrypto.so.3:/lib/libcrypto.so.3:ro
+    ulimits:
+     nproc: 65535
+     nofile:
+      soft: 20000
+      hard: 40000
+    depends_on:
+    - postgres-server
+    restart: always
+
+  zabbix-web-nginx-pgsql:
+    image: registry.work.top/zabbix/zabbix-web-nginx-pgsql:alpine-6.0_v2023-06-03
+    environment:
+      ZBX_SERVER_HOST: "zabbix-server-pgsql"
+      DB_SERVER_HOST: "postgres-server"
+      POSTGRES_USER: "zabbix"
+      POSTGRES_PASSWORD: "zabbix_pwd"
+      POSTGRES_DB: "zabbix"
+      ZBX_SERVER_NAME: "Composed installation"
+    volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - ./zbx_env/etc/ssl/nginx:/etc/ssl/nginx:ro
+    - ./zbx_env/usr/share/zabbix/modules/:/usr/share/zabbix/modules/:ro
+    depends_on:
+    - postgres-server
+    - zabbix-server-pgsql
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      zbx_net_backend:
+        aliases:
+        - zabbix-web-nginx-pgsql
+        - zabbix-web-nginx-alpine-pgsql
+        - zabbix-web-nginx-pgsql-alpine
+      zbx_net_frontend:
+    ports:
+    - "80:8080"
+    - "443:8443"
+    sysctls:
+    - net.core.somaxconn=65535
+    labels:
+      com.zabbix.description: "Zabbix frontend on Nginx web-server with PostgreSQL database support"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-frontend"
+      com.zabbix.webserver: "nginx"
+      com.zabbix.dbtype: "pgsql"
+      com.zabbix.os: "alpine"
+    stop_grace_period: 10s
+    restart: always
+
+  zabbix-proxy-sqlite3:
+    image: registry.work.top/zabbix/zabbix-proxy-sqlite3:alpine-6.0_v2023-06-03
+    ports:
+    - "10061:10051"
+    volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - /etc/timezone:/etc/timezone:ro 
+    - ./zbx_env/usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts:ro
+    - ./zbx_env/var/lib/zabbix/modules:/var/lib/zabbix/modules:ro
+    - ./zbx_env/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
+    - ./zbx_env/var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro
+    - ./zbx_env/var/lib/zabbix/mibs:/var/lib/zabbix/mibs:ro
+    - snmptraps:/var/lib/zabbix/snmptraps:rw
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    env_file:
+    - ./env_vars/.env_prx
+    - ./env_vars/.env_prx_sqlite3
+    depends_on:
+    - zabbix-java-gateway
+    - zabbix-snmptraps
+    networks:
+      zbx_net_backend:
+        aliases:
+        - zabbix-proxy-sqlite3
+        - zabbix-proxy-alpine-sqlite3
+        - zabbix-proxy-sqlite3-alpine
+      zbx_net_frontend:
+    stop_grace_period: 30s
+    labels:
+      com.zabbix.description: "Zabbix proxy with SQLite3 database support"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-proxy"
+      com.zabbix.dbtype: "sqlite3"
+      com.zabbix.os: "alpine"
+
+  zabbix-agent:
+    image: registry.work.top/zabbix/zabbix-agent:alpine-6.0_v2023-06-03
+    ports:
+    - "10050:10050"
+    volumes:
+    - /:/host-root-dir:ro
+    - /etc/localtime:/etc/localtime:ro
+    - ./zbx_env/etc/zabbix/zabbix_agentd.conf:/etc/zabbix/zabbix_agentd.conf:ro
+    - ./zbx_env/etc/zabbix/zabbix_agentd.d:/etc/zabbix/zabbix_agentd.d:ro
+    - ./zbx_env/var/lib/zabbix/modules:/var/lib/zabbix/modules:ro
+    - ./zbx_env/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
+    - ./zbx_env/var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro
+    labels:
+      com.zabbix.description: "Zabbix agent"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-agentd"
+      com.zabbix.os: "alpine"
+    privileged: true
+    pid: "host"
+    networks:
+      zbx_net_backend:
+        aliases:
+        - zabbix-agent
+        - zabbix-agent-passive
+        - zabbix-agent-alpine
+    stop_grace_period: 5s
+    restart: always
+
+  zabbix-java-gateway:
+    image: registry.work.top/zabbix/zabbix-java-gateway:alpine-6.0_v2023-06-03
+    ports:
+    - "10052:10052"
+    env_file:
+    - ./env_vars/.env_java
+    networks:
+      zbx_net_backend:
+        aliases:
+        - zabbix-java-gateway
+        - zabbix-java-gateway-alpine
+    stop_grace_period: 5s
+    labels:
+      com.zabbix.description: "Zabbix Java Gateway"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "java-gateway"
+      com.zabbix.os: "alpine"
+
+volumes:
+  snmptraps:
+
+networks:
+  zbx_net_frontend:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+      - subnet: fd01:100::/112
+        gateway: fd01:100::ffff
+      - subnet: 172.16.100.0/24
+        gateway: 172.16.100.254
+  zbx_net_backend:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    internal: true
+    enable_ipv6: true
+    ipam:
+      driver: default
+      config:
+      - subnet: fd01:101::/112
+        gateway: fd01:101::ffff
+      - subnet: 172.16.101.0/24
+        gateway: 172.16.101.254
