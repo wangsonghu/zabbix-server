@@ -184,6 +184,7 @@ services:
     - /etc/localtime:/etc/localtime:ro
     - /etc/timezone:/etc/timezone:ro 
     - ./zbx_env/usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts:ro
+    - ./zbx_env/etc/zabbix/zabbix_proxy.conf:/etc/zabbix/zabbix_proxy.conf:ro
     - ./zbx_env/var/lib/zabbix/modules:/var/lib/zabbix/modules:ro
     - ./zbx_env/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
     - ./zbx_env/var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro
