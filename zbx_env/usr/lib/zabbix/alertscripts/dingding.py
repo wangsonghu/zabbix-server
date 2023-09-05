@@ -5,7 +5,7 @@ import json
 import sys
 import os
 import datetime
-webhook = "https://oapi.dingtalk.com/robot/send?access_token=a87ebe756800b76e97b37f1cd964032ebd786fda2873a19ad24228e29eb31bda"
+webhook = "https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxx"
 user=sys.argv[1]
 subject=sys.argv[2]
 text=sys.argv[3]
